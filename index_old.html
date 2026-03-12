@@ -1,143 +1,97 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-
 <meta charset="UTF-8">
-<title>Sentinela Server 10.0.0.139 Dasboard</title>
+<title>Servidor 10.0.0.139 - Monitor Profissional</title>
 
 <link rel="stylesheet" href="style.css">
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Gauge.js -->
 <script src="https://cdn.jsdelivr.net/npm/gaugeJS/dist/gauge.min.js"></script>
+
+<style>
+/* Ajuste para gauges */
+.gauge-container{
+    text-align:center;
+}
+
+.gauge-container canvas{
+    max-width:260px;
+    margin:auto;
+}
+
+.indicator{
+    margin-top:10px;
+    font-size:18px;
+    font-weight:bold;
+    color:#2563eb;
+}
+</style>
 
 </head>
 
-
 <body>
 
-<h1>Sentinela Server 10.0.0.139 Dasboard</h1>
+<h1>Dashboard Servidor 10.0.0.139</h1>
 
 <div id="alert"></div>
 
-
 <div class="grid">
 
-
-<!-- CPU -->
-
+<!-- CPU GAUGE -->
 <div class="card gauge-container">
-
 <h3>CPU Total</h3>
-
-<canvas id="cpuGauge"></canvas>
-
+<canvas id="cpuGauge" width="260" height="160"></canvas>
 <div id="cpuText" class="indicator"></div>
-
 </div>
 
-
-<!-- TEMP -->
-
+<!-- TEMP GAUGE -->
 <div class="card gauge-container">
-
 <h3>Temperatura SoC</h3>
-
-<canvas id="tempGauge"></canvas>
-
+<canvas id="tempGauge" width="260" height="160"></canvas>
 <div id="tempText" class="indicator"></div>
-
 </div>
-
 
 <!-- LOAD -->
-
 <div class="card">
-
 <h3>Load Average</h3>
-
 <canvas id="loadChart"></canvas>
-
 </div>
-
 
 <!-- FRIGATE -->
-
 <div class="card">
-
 <h3>Frigate CPU (%)</h3>
-
 <canvas id="frigateChart"></canvas>
-
 </div>
-
 
 <!-- DISK IO -->
-
 <div class="card">
-
 <h3>Disk IO</h3>
-
 <canvas id="diskChart"></canvas>
-
 </div>
-
 
 <!-- CPU CORE -->
-
 <div class="card">
-
 <h3>CPU por Core</h3>
-
 <canvas id="coreChart"></canvas>
-
 </div>
 
-
-<!-- RAM + DISCO -->
-
+<!-- RAM -->
 <div class="card">
-
-<h3>Memória e Disco</h3>
-
-<div class="bar-title">RAM</div>
-
-<div class="ram-bar">
-<div id="ramFill"></div>
+<h3>RAM</h3>
+<div id="ram" class="indicator"></div>
 </div>
 
-<div id="ramText" class="indicator"></div>
-
-
-<div class="bar-title">Disco</div>
-
-<div class="ram-bar">
-<div id="diskFill"></div>
 </div>
-
-<div id="diskText" class="indicator"></div>
-
-</div>
-
-
-<!-- CONTAINERS -->
-
-<div class="card">
-
-<h3>Containers</h3>
-
-<div id="containers"></div>
-
-</div>
-
-
-</div>
-
-
 
 <script>
 
+/* ============================
+   GAUGE CPU
+============================ */
 
 const cpuGauge = new Gauge(
 document.getElementById("cpuGauge")
@@ -157,14 +111,20 @@ staticZones:[
 {strokeStyle:"#22c55e",min:0,max:50},
 {strokeStyle:"#facc15",min:50,max:80},
 {strokeStyle:"#ef4444",min:80,max:100}
-]
+],
+
+limitMax:false
 
 });
 
-cpuGauge.maxValue=100;
+cpuGauge.maxValue = 100;
 cpuGauge.setMinValue(0);
+cpuGauge.set(0);
 
 
+/* ============================
+   GAUGE TEMPERATURA
+============================ */
 
 const tempGauge = new Gauge(
 document.getElementById("tempGauge")
@@ -188,16 +148,19 @@ staticZones:[
 
 });
 
-tempGauge.maxValue=100;
+tempGauge.maxValue = 100;
 tempGauge.setMinValue(0);
+tempGauge.set(0);
 
 
+/* ============================
+   CHARTS
+============================ */
 
 function createLineChart(ctx,label,color,maxY=100){
 
 return new Chart(ctx,{
 type:'line',
-
 data:{
 labels:[],
 datasets:[{
@@ -209,89 +172,74 @@ fill:false,
 tension:0.2
 }]
 },
-
 options:{
 animation:false,
 responsive:true,
-scales:{y:{min:0,max:maxY}}
+scales:{ y:{ min:0,max:maxY } }
 }
-
 });
 
 }
 
-
-
-const loadChart=createLineChart(
+const loadChart = createLineChart(
 document.getElementById('loadChart'),
 'Load','#ef4444',8
 );
 
-
-const frigateChart=createLineChart(
+const frigateChart = createLineChart(
 document.getElementById('frigateChart'),
-'Frigate','#22c55e',200
+'Frigate CPU','#22c55e',200
 );
 
 
-
-const diskChart=new Chart(
-
+const diskChart = new Chart(
 document.getElementById('diskChart'),
-
 {
 type:'line',
-
 data:{
 labels:[],
 datasets:[
-{label:'Read',data:[],borderColor:'#facc15'},
-{label:'Write',data:[],borderColor:'#ef4444'}
+{label:'Read',data:[],borderColor:'#facc15',fill:false},
+{label:'Write',data:[],borderColor:'#ef4444',fill:false}
 ]
 },
-
 options:{animation:false}
-
 }
-
 );
 
 
-
-const coreChart=new Chart(
-
+const coreChart = new Chart(
 document.getElementById('coreChart'),
-
 {
 type:'bar',
-
 data:{
 labels:[],
 datasets:[{
+label:'Uso %',
 data:[],
-backgroundColor:'#6366f1'
+backgroundColor:[]
 }]
 },
-
 options:{
 animation:false,
-scales:{y:{min:0,max:100}}
+scales:{ y:{ min:0,max:100 } }
 }
-
 }
-
 );
 
 
+/* ============================
+   ADD DATA
+============================ */
 
 function addData(chart,value){
 
-const now=new Date().toLocaleTimeString();
+const now = new Date().toLocaleTimeString();
 
 chart.data.labels.push(now);
 chart.data.datasets[0].data.push(value);
 
-if(chart.data.labels.length>30){
+if(chart.data.labels.length > 30){
 
 chart.data.labels.shift();
 chart.data.datasets[0].data.shift();
@@ -303,35 +251,42 @@ chart.update();
 }
 
 
+/* ============================
+   UPDATE
+============================ */
 
 function update(){
 
 fetch('/monitor-cpu/api.php')
-
 .then(r=>r.json())
-
 .then(data=>{
 
-
+/* CPU */
 cpuGauge.set(data.cpu);
+document.getElementById('cpuText').innerText =
+data.cpu + " %";
+
+/* TEMP */
 tempGauge.set(data.temp);
+document.getElementById('tempText').innerText =
+data.temp + " °C";
 
-document.getElementById("cpuText").innerText=data.cpu+" %";
-document.getElementById("tempText").innerText=data.temp+" °C";
-
-
+/* LOAD */
 addData(loadChart,data.load);
+
+/* FRIGATE */
 addData(frigateChart,data.frigate_cpu);
 
+/* DISK */
 
-
-const now=new Date().toLocaleTimeString();
+const now = new Date().toLocaleTimeString();
 
 diskChart.data.labels.push(now);
+
 diskChart.data.datasets[0].data.push(data.disk_read);
 diskChart.data.datasets[1].data.push(data.disk_write);
 
-if(diskChart.data.labels.length>30){
+if(diskChart.data.labels.length > 30){
 
 diskChart.data.labels.shift();
 diskChart.data.datasets[0].data.shift();
@@ -342,75 +297,52 @@ diskChart.data.datasets[1].data.shift();
 diskChart.update();
 
 
+/* CORES */
 
 if(data.cores){
 
-coreChart.data.labels=Object.keys(data.cores);
-coreChart.data.datasets[0].data=Object.values(data.cores);
+coreChart.data.labels = Object.keys(data.cores);
+
+coreChart.data.datasets[0].data =
+Object.values(data.cores);
+
+coreChart.data.datasets[0].backgroundColor =
+Object.keys(data.cores).map(c =>
+(c==6||c==7)?'#22c55e':'#6366f1'
+);
+
 coreChart.update();
 
 }
 
 
+/* RAM */
 
-let ramPercent=(data.ram_used/data.ram_total)*100;
-
-document.getElementById("ramFill").style.width=ramPercent+"%";
-
-document.getElementById("ramText").innerText=
-data.ram_used+" MB / "+data.ram_total+" MB";
+document.getElementById('ram').innerText =
+"RAM: " + data.ram_used + " MB / " +
+data.ram_total + " MB";
 
 
+/* ALERT */
 
-let diskPercent=(data.disk_used/data.disk_total)*100;
-
-document.getElementById("diskFill").style.width=diskPercent+"%";
-
-document.getElementById("diskText").innerText=
-data.disk_used+" GB / "+data.disk_total+" GB";
-
-
-
-if(data.containers){
-
-let html="";
-
-data.containers.forEach(c=>{
-
-let color="status-ok";
-
-if(c.state==="exited") color="status-danger";
-if(c.state==="restarting") color="status-warning";
-
-html+=`
-<div class="container-row">
-<span class="${color}">●</span>
-${c.name}
-<span class="container-state">${c.state}</span>
-</div>
-`;
-
-});
-
-document.getElementById("containers").innerHTML=html;
-
-}
-
-
+document.getElementById('alert').innerHTML =
+(data.load > 5)
+? "<div class='alert'>ALERTA: LOAD ALTO!</div>"
+: "";
 
 });
 
 }
 
 
+/* LOOP */
 
 setInterval(update,3000);
 
 update();
 
-
 </script>
-
 
 </body>
 </html>
+```

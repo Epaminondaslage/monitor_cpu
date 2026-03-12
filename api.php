@@ -1,92 +1,184 @@
+
 <?php
+
 header('Content-Type: application/json');
 
-// ======================
-// LOAD
-// ======================
+error_reporting(0);
+
+
+/* =========================
+   LOAD
+========================= */
+
 $load = sys_getloadavg();
+$loadValue = $load[0] ?? 0;
 
-// ======================
-// CPU TOTAL + POR CORE (via /proc/stat)
-// ======================
-$stat1 = file('/proc/stat');
+
+/* =========================
+   CPU TOTAL + CORES
+========================= */
+
+$stat1 = @file('/proc/stat');
 usleep(200000);
-$stat2 = file('/proc/stat');
+$stat2 = @file('/proc/stat');
 
-$cores = [];
 $cpuUsage = 0;
+$cores = [];
 
-foreach ($stat1 as $i => $line) {
+if($stat1 && $stat2){
 
-    if (preg_match('/^cpu[0-9]*/', $line)) {
+foreach($stat1 as $i => $line){
 
-        $a = preg_split('/\s+/', trim($stat1[$i]));
-        $b = preg_split('/\s+/', trim($stat2[$i]));
+if(preg_match('/^cpu[0-9]*/',$line)){
 
-        $idle1 = $a[4];
-        $idle2 = $b[4];
+$a = preg_split('/\s+/',trim($stat1[$i]));
+$b = preg_split('/\s+/',trim($stat2[$i]));
 
-        $total1 = array_sum(array_slice($a,1));
-        $total2 = array_sum(array_slice($b,1));
+$idle1 = $a[4] ?? 0;
+$idle2 = $b[4] ?? 0;
 
-        $totalDiff = $total2 - $total1;
-        $idleDiff  = $idle2 - $idle1;
+$total1 = array_sum(array_slice($a,1));
+$total2 = array_sum(array_slice($b,1));
 
-        if ($totalDiff > 0) {
-            $usage = 100 * ($totalDiff - $idleDiff) / $totalDiff;
-            $usage = round($usage,2);
+$totalDiff = $total2 - $total1;
+$idleDiff = $idle2 - $idle1;
 
-            if ($a[0] === 'cpu') {
-                $cpuUsage = $usage; // total
-            } else {
-                $core = substr($a[0],3);
-                $cores[$core] = $usage;
-            }
-        }
-    }
+if($totalDiff > 0){
+
+$usage = 100 * ($totalDiff - $idleDiff) / $totalDiff;
+$usage = round($usage,2);
+
+if($a[0] === 'cpu')
+$cpuUsage = $usage;
+else
+$cores[substr($a[0],3)] = $usage;
+
 }
 
-// ======================
-// RAM
-// ======================
-$mem = shell_exec("free -m");
+}
+
+}
+
+}
+
+
+/* =========================
+   RAM
+========================= */
+
+$mem = @shell_exec("free -m");
+
 preg_match('/Mem:\s+(\d+)\s+(\d+)/',$mem,$m);
+
 $ramTotal = $m[1] ?? 0;
 $ramUsed  = $m[2] ?? 0;
 
-// ======================
-// Temperatura
-// ======================
+
+/* =========================
+   TEMPERATURA SOC
+========================= */
+
 $tempFile="/sys/class/thermal/thermal_zone0/temp";
+
 $temp = file_exists($tempFile)
-    ? intval(file_get_contents($tempFile))/1000
-    : 0;
+? intval(file_get_contents($tempFile))/1000
+: 0;
 
-// ======================
-// Docker Frigate
-// ======================
-$docker = shell_exec("docker stats frigate --no-stream --format '{{.CPUPerc}}'");
-$frigateCpu = floatval(str_replace('%','',$docker));
 
-// ======================
-// IO
-// ======================
-$io = shell_exec("iostat -dx 1 1 | grep -E 'sd|nvme' | head -n 1");
+/* =========================
+   DISK SPACE
+========================= */
+
+$totalDisk = disk_total_space("/");
+$freeDisk  = disk_free_space("/");
+
+$diskTotal = round($totalDisk / (1024*1024*1024));
+$diskUsed  = round(($totalDisk - $freeDisk) / (1024*1024*1024));
+
+
+/* =========================
+   DISK IO
+========================= */
+
+$io = @shell_exec(
+"iostat -dx 1 1 2>/dev/null | grep -E 'sd|nvme' | head -n 1"
+);
+
 $ioParts = preg_split('/\s+/',trim($io));
+
 $read  = floatval($ioParts[5] ?? 0);
 $write = floatval($ioParts[6] ?? 0);
 
-// ======================
-// OUTPUT
-// ======================
+
+/* =========================
+   FRIGATE CPU
+========================= */
+
+$docker = @shell_exec(
+"docker stats frigate --no-stream --format '{{.CPUPerc}}' 2>/dev/null"
+);
+
+$frigateCpu = floatval(
+str_replace('%','',$docker)
+);
+
+
+/* =========================
+   DOCKER CONTAINERS
+========================= */
+
+$containers = [];
+
+$dockerList = @shell_exec(
+"docker ps -a --format '{{.Names}}|{{.State}}' 2>/dev/null"
+);
+
+if($dockerList){
+
+foreach(explode("\n",trim($dockerList)) as $line){
+
+if(!$line) continue;
+
+$parts = explode("|",$line);
+
+$name = $parts[0] ?? "";
+$state = $parts[1] ?? "";
+
+$containers[] = [
+"name"=>$name,
+"state"=>$state
+];
+
+}
+
+}
+
+
+/* =========================
+   OUTPUT JSON
+========================= */
+
 echo json_encode([
-    "load"=>$load[0],
-    "cpu"=>$cpuUsage,
-    "cores"=>$cores,
-    "ram_used"=>$ramUsed,
-    "ram_total"=>$ramTotal,
-    "temp"=>$temp,
-    "frigate_cpu"=>$frigateCpu,
-    "disk_read"=>$read,
-    "disk_write"=>$write
+
+"load" => $loadValue,
+
+"cpu" => $cpuUsage,
+
+"cores" => $cores,
+
+"ram_used" => $ramUsed,
+"ram_total" => $ramTotal,
+
+"temp" => $temp,
+
+"disk_used" => $diskUsed,
+"disk_total" => $diskTotal,
+
+"disk_read" => $read,
+"disk_write" => $write,
+
+"frigate_cpu" => $frigateCpu,
+
+"containers" => $containers
+
 ]);
